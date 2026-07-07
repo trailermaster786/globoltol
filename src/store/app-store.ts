@@ -189,15 +189,8 @@ export const useActiveTenant = () =>
 
 export function roleLabel(r: string): string {
   const map: Record<string, string> = {
-    SUPER_ADMIN: "Super Admin",
-    TENANT_ADMIN: "Tenant Admin",
-    PLAZA_MANAGER: "Plaza Manager",
-    LANE_OPERATOR: "Lane Operator",
-    FINANCE: "Finance Officer",
-    ENFORCEMENT: "Enforcement",
-    SUPPORT: "Support Agent",
-    AUDITOR: "Auditor",
-    CUSTOMER: "Customer",
+    ADMIN: "Administrator",
+    OPERATOR: "Lane Operator",
   };
   return map[r] ?? r;
 }

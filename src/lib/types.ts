@@ -3,16 +3,7 @@
 // Mirrors prisma/schema.prisma 1:1 for in-memory demo store.
 // =====================================================================
 
-export type RoleName =
-  | "SUPER_ADMIN"
-  | "TENANT_ADMIN"
-  | "PLAZA_MANAGER"
-  | "LANE_OPERATOR"
-  | "FINANCE"
-  | "ENFORCEMENT"
-  | "SUPPORT"
-  | "AUDITOR"
-  | "CUSTOMER";
+export type RoleName = "ADMIN" | "OPERATOR";
 
 export type ModuleKey =
   | "dashboard"
@@ -28,7 +19,8 @@ export type ModuleKey =
   | "reports"
   | "notifications"
   | "admin"
-  | "audit";
+  | "audit"
+  | "operator";
 
 export type Permission = "view" | "create" | "edit" | "delete" | "approve";
 

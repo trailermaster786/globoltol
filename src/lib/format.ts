@@ -22,10 +22,18 @@ export function formatCurrency(
       maximumFractionDigits: 0,
     }).format(amount);
   }
+  if (currency === "OMR") {
+    // Omani Rial uses 3 decimal places (1 OMR = 1000 baisa)
+    if (compact) {
+      if (Math.abs(amount) >= 1000) return `OMR ${(amount / 1000).toFixed(1)}K`;
+      return `OMR ${amount.toFixed(3)}`;
+    }
+    return `OMR ${amount.toFixed(3)}`;
+  }
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(amount);
 }
 
