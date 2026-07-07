@@ -1,0 +1,169 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* Global Toll brand tokens */
+  --color-teal: #2E8B8B;
+  --color-teal-light: #4FA9A9;
+  --color-teal-dark: #1F6868;
+  --color-navy: #2C3E50;
+  --color-navy-light: #3D5266;
+  --color-slate-blue: #5C7A8A;
+  --color-gold: #E0A030;
+  --color-gold-light: #F0BC5C;
+  --color-gold-dark: #B07D1E;
+  --color-canvas: #F2F2F0;
+}
+
+:root {
+  --radius: 0.5rem;
+  /* Global Toll light theme — built on brand palette */
+  --background: #F2F2F0;          /* off-white canvas */
+  --foreground: #2C3E50;          /* deep navy text */
+  --card: #FFFFFF;
+  --card-foreground: #2C3E50;
+  --popover: #FFFFFF;
+  --popover-foreground: #2C3E50;
+  --primary: #2E8B8B;             /* primary teal */
+  --primary-foreground: #FFFFFF;
+  --secondary: #E6EAECEE;         /* slate-blue tint */
+  --secondary-foreground: #2C3E50;
+  --muted: #EEF1F3;
+  --muted-foreground: #5C7A8A;    /* slate blue-grey */
+  --accent: #FFF6E5;              /* gold-tinted accent for money/revenue UI */
+  --accent-foreground: #B07D1E;   /* gold-dark text */
+  --destructive: #C0392B;
+  --border: #DDE3E8;
+  --input: #DDE3E8;
+  --ring: #2E8B8B;
+  --chart-1: #2E8B8B;             /* teal */
+  --chart-2: #2C3E50;             /* navy */
+  --chart-3: #5C7A8A;             /* slate-blue */
+  --chart-4: #E0A030;             /* gold — reserved for revenue/growth */
+  --chart-5: #7AB3A3;             /* muted teal */
+  --sidebar: #2C3E50;             /* navy sidebar */
+  --sidebar-foreground: #DCE5EC;
+  --sidebar-primary: #2E8B8B;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #34495E;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: #3D5266;
+  --sidebar-ring: #2E8B8B;
+}
+
+.dark {
+  --background: #1A2530;
+  --foreground: #ECEFF2;
+  --card: #243240;
+  --card-foreground: #ECEFF2;
+  --popover: #243240;
+  --popover-foreground: #ECEFF2;
+  --primary: #4FA9A9;
+  --primary-foreground: #0E1820;
+  --secondary: #2D3D4D;
+  --secondary-foreground: #ECEFF2;
+  --muted: #2D3D4D;
+  --muted-foreground: #8AA3B3;
+  --accent: #3A2E15;
+  --accent-foreground: #F0BC5C;
+  --destructive: #E55A4A;
+  --border: #34495E;
+  --input: #34495E;
+  --ring: #4FA9A9;
+  --chart-1: #4FA9A9;
+  --chart-2: #5C7A8A;
+  --chart-3: #2E8B8B;
+  --chart-4: #F0BC5C;
+  --chart-5: #7AB3A3;
+  --sidebar: #16212A;
+  --sidebar-foreground: #C9D4DC;
+  --sidebar-primary: #2E8B8B;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #1F2D38;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: #1F2D38;
+  --sidebar-ring: #4FA9A9;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "ss01", "cv11";
+  }
+}
+
+/* Custom scrollbar for enterprise feel */
+@layer utilities {
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 3px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+  }
+
+  .bg-canvas {
+    background-color: var(--color-canvas);
+  }
+  .text-teal { color: var(--color-teal); }
+  .text-navy { color: var(--color-navy); }
+  .text-gold { color: var(--color-gold); }
+  .text-slate-blue { color: var(--color-slate-blue); }
+  .bg-teal { background-color: var(--color-teal); }
+  .bg-navy { background-color: var(--color-navy); }
+  .bg-gold { background-color: var(--color-gold); }
+
+  .revenue-glow {
+    box-shadow: 0 0 0 1px rgba(224, 160, 48, 0.25), 0 8px 24px -8px rgba(224, 160, 48, 0.4);
+  }
+}

@@ -1,0 +1,413 @@
+// =====================================================================
+// Global Toll — Enterprise Toll Tax Management System
+// Prisma Schema (SQLite for dev; production target: PostgreSQL + TimescaleDB)
+// =====================================================================
+// This schema documents the full data model for all 14 modules in the
+// Global Toll platform. The running demo uses an in-memory store backed
+// by these same types (see src/lib/types.ts) for performance; the schema
+// below is the canonical reference for production deployment.
+// =====================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---- Multi-tenant foundation ------------------------------------------
+
+model Tenant {
+  id            String   @id @default(cuid())
+  name          String
+  legalName     String?
+  taxId         String?
+  countryCode   String   @default("IN")
+  currency      String   @default("INR")
+  timezone      String   @default("Asia/Kolkata")
+  status        String   @default("ACTIVE") // ACTIVE | SUSPENDED | TRIAL
+  subscriptionTier String @default("ENTERPRISE")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  highways      Highway[]
+  users         User[]
+  vehicles      Vehicle[]
+  corporateAccounts CorporateAccount[]
+  rateCards     RateCard[]
+  settlements   Settlement[]
+  auditLogs     AuditLog[]
+}
+
+model Highway {
+  id          String   @id @default(cuid())
+  tenantId    String
+  code        String   // e.g. NH-48
+  name        String
+  lengthKm    Float
+  region      String?
+  createdAt   DateTime @default(now())
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  plazas      TollPlaza[]
+}
+
+model TollPlaza {
+  id          String   @id @default(cuid())
+  highwayId   String
+  tenantId    String
+  code        String   // e.g. TP-0048
+  name        String
+  kmMark      Float
+  latitude    Float?
+  longitude   Float?
+  direction   String   // FORWARD | REVERSE | BOTH
+  status      String   @default("OPEN") // OPEN | CLOSED | MAINTENANCE
+  createdAt   DateTime @default(now())
+
+  highway     Highway  @relation(fields: [highwayId], references: [id])
+  lanes       Lane[]
+  rateCards   RateCard[]
+}
+
+model Lane {
+  id          String   @id @default(cuid())
+  plazaId     String
+  number      Int
+  type        String   // CASH | ETC_RFID | ANPR | HYBRID | EXPRESS_HOV
+  direction   String   // FORWARD | REVERSE
+  status      String   @default("OPEN") // OPEN | CLOSED | MAINTENANCE | FAULTED
+  reason      String?
+  updatedAt   DateTime @updatedAt
+
+  plaza       TollPlaza @relation(fields: [plazaId], references: [id])
+  devices     Device[]
+  transactions Transaction[]
+  shifts      ShiftAssignment[]
+}
+
+model Device {
+  id          String   @id @default(cuid())
+  laneId      String
+  type        String   // BARRIER | RFID_READER | ANPR_CAMERA | WIM_SENSOR | LOOP_DETECTOR | DISPLAY_BOARD | PRINTER
+  serialNo    String
+  vendor      String?
+  status      String   @default("ONLINE") // ONLINE | OFFLINE | DEGRADED | ERROR
+  lastHeartbeat DateTime?
+  errorCode   String?
+  firmware    String?
+
+  lane        Lane     @relation(fields: [laneId], references: [id])
+}
+
+// ---- Vehicle & Tag management -----------------------------------------
+
+model VehicleClass {
+  id          String   @id @default(cuid())
+  code        String   @unique // CAR | LCV | HCV | BUS | MULTI_AXLE | OVERSIZED | TWO_WHEELER
+  label       String
+  axleCount   Int
+  description String?
+}
+
+model Vehicle {
+  id          String   @id @default(cuid())
+  tenantId    String
+  plateNumber String
+  vehicleClassCode String
+  ownerName   String?
+  ownerKyc    String?  // JSON blob: aadhaar/license/etc
+  status      String   @default("ACTIVE") // ACTIVE | BLACKLISTED | SUSPENDED
+  blacklistReason String?
+  createdAt   DateTime @default(now())
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  tags        Tag[]
+  transactions Transaction[]
+  violations  Violation[]
+}
+
+model Tag {
+  id          String   @id @default(cuid())
+  vehicleId   String
+  rfid        String   @unique
+  status      String   @default("ACTIVE") // ACTIVE | INACTIVE | LOST | REPLACED
+  issuedAt    DateTime @default(now())
+  replacedAt  DateTime?
+
+  vehicle     Vehicle  @relation(fields: [vehicleId], references: [id])
+  wallet      Wallet?
+}
+
+// ---- Wallet & Payment -------------------------------------------------
+
+model Wallet {
+  id          String   @id @default(cuid())
+  tagId       String   @unique
+  balance     Float    @default(0)
+  currency    String   @default("INR")
+  autoRecharge Boolean @default(false)
+  rechargeThreshold Float?
+  rechargeAmount Float?
+  updatedAt   DateTime @updatedAt
+
+  tag         Tag      @relation(fields: [tagId], references: [id])
+  transactions Transaction[]
+}
+
+// ---- Pricing engine ---------------------------------------------------
+
+model RateCard {
+  id          String   @id @default(cuid())
+  tenantId    String
+  plazaId     String?
+  vehicleClassCode String
+  direction   String   @default("BOTH")
+  singleJourney Float
+  roundJourney  Float?
+  monthlyPass   Float?
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  version     Int      @default(1)
+  status      String   @default("ACTIVE")
+  createdBy   String
+  createdAt   DateTime @default(now())
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  plaza       TollPlaza? @relation(fields: [plazaId], references: [id])
+}
+
+model RateRule {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  condition   String   // serialized JSON: { timeOfDay, dayType, congestionLevel, ... }
+  action      String   // multiplier | surcharge | discount
+  value       Float
+  priority    Int      @default(100)
+  enabled     Boolean  @default(true)
+}
+
+model DiscountPlan {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String   // FREQUENT_USER | MONTHLY_PASS | LOCAL_RESIDENT | FLEET
+  type        String
+  value       Float
+  valueType   String   // PERCENTAGE | FLAT
+  eligibility String?
+}
+
+// ---- Transactions -----------------------------------------------------
+
+model Transaction {
+  id           String   @id @default(cuid())
+  tenantId     String
+  plazaId      String?
+  laneId       String?
+  vehicleId    String?
+  tagId        String?
+  walletId     String?
+  vehicleClassCode String?
+  plateCaptured String?
+  amount       Float
+  taxAmount    Float    @default(0)
+  totalAmount  Float
+  paymentMethod String  // WALLET | UPI | CARD | NETBANKING | CASH | FLEET_INVOICE
+  status       String   @default("SUCCESS") // SUCCESS | FAILED | PENDING | REFUNDED
+  failureReason String?
+  idempotencyKey String?
+  capturedAt   DateTime @default(now())
+  settledAt    DateTime?
+  settlementId String?
+
+  lane         Lane?    @relation(fields: [laneId], references: [id])
+  vehicle      Vehicle? @relation(fields: [vehicleId], references: [id])
+  tag          Tag?     @relation(fields: [tagId], references: [id])
+  wallet       Wallet?  @relation(fields: [walletId], references: [id])
+}
+
+// ---- Settlement & Reconciliation --------------------------------------
+
+model Settlement {
+  id           String   @id @default(cuid())
+  tenantId     String
+  batchDate    DateTime
+  type         String   // CASH_SHIFT | DAILY_BANK | INTEROP_CLEARING
+  totalAmount  Float
+  expectedAmount Float
+  variance     Float
+  status       String   @default("OPEN") // OPEN | MATCHED | VARIANCE | LOCKED
+  lockedAt     DateTime?
+  lockedBy     String?
+  transactionCount Int
+
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  transactions Transaction[]
+}
+
+// ---- Violations & Enforcement -----------------------------------------
+
+model Violation {
+  id          String   @id @default(cuid())
+  tenantId    String
+  vehicleId   String?
+  plazaId     String?
+  laneId      String?
+  plateCaptured String
+  type        String   // UNPAID_PASS | TAG_MISMATCH | BLACKLISTED | WRONG_LANE | OVERSPEED
+  evidenceUrl String?
+  detectedAt  DateTime @default(now())
+  status      String   @default("DETECTED") // DETECTED | CHALLAN_ISSUED | APPEALED | PAID | ESCALATED | CLOSED
+
+  vehicle     Vehicle? @relation(fields: [vehicleId], references: [id])
+  challans    Challan[]
+}
+
+model Challan {
+  id          String   @id @default(cuid())
+  violationId String
+  challanNo   String   @unique
+  amount      Float
+  issueDate   DateTime @default(now())
+  dueDate     DateTime
+  status      String   @default("ISSUED") // ISSUED | PAID | OVERDUE | APPEALED | ESCALATED
+  paidDate    DateTime?
+  appealReason String?
+
+  violation   Violation @relation(fields: [violationId], references: [id])
+}
+
+// ---- Staff & HR -------------------------------------------------------
+
+model Staff {
+  id          String   @id @default(cuid())
+  tenantId    String
+  userId      String?
+  employeeId  String
+  designation String   // LANE_OPERATOR | PLAZA_MANAGER | FINANCE_OFFICER | ENFORCEMENT | SUPPORT | AUDITOR
+  plazaId     String?
+  status      String   @default("ACTIVE")
+  hireDate    DateTime @default(now())
+
+  shifts      ShiftAssignment[]
+}
+
+model ShiftAssignment {
+  id          String   @id @default(cuid())
+  staffId     String
+  laneId      String
+  shiftDate   DateTime
+  shiftStart  DateTime
+  shiftEnd    DateTime
+  cashOpening Float?
+  cashClosing Float?
+  variance    Float?
+
+  staff       Staff    @relation(fields: [staffId], references: [id])
+  lane        Lane     @relation(fields: [laneId], references: [id])
+}
+
+// ---- RBAC -------------------------------------------------------------
+
+model User {
+  id          String   @id @default(cuid())
+  tenantId    String?
+  email       String   @unique
+  name        String
+  passwordHash String
+  roleId      String
+  mfaEnabled  Boolean  @default(false)
+  status      String   @default("ACTIVE")
+  lastLoginAt DateTime?
+  createdAt   DateTime @default(now())
+
+  tenant      Tenant?  @relation(fields: [tenantId], references: [id])
+  role        Role     @relation(fields: [roleId], references: [id])
+  auditLogs   AuditLog[]
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique // SUPER_ADMIN | TENANT_ADMIN | PLAZA_MANAGER | LANE_OPERATOR | FINANCE | ENFORCEMENT | SUPPORT | AUDITOR | CUSTOMER
+  description String?
+  permissions Json     // { module: { action: bool } }
+
+  users       User[]
+}
+
+// ---- Audit & Notifications --------------------------------------------
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  tenantId    String?
+  userId      String?
+  actorName   String
+  action      String   // CREATE | UPDATE | DELETE | APPROVE | LOGIN | LOGOUT
+  module      String
+  entityId    String?
+  entityType  String?
+  beforeValue String?  // JSON
+  afterValue  String?  // JSON
+  ipAddress   String?
+  hashChain   String?  // tamper-evident: sha256(prevHash + payload)
+  createdAt   DateTime @default(now())
+
+  tenant      Tenant?  @relation(fields: [tenantId], references: [id])
+  user        User?    @relation(fields: [userId], references: [id])
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  tenantId    String?
+  channel     String   // SMS | EMAIL | PUSH | WHATSAPP
+  template    String
+  recipient   String
+  payload     String   // JSON
+  status      String   @default("QUEUED") // QUEUED | SENT | DELIVERED | FAILED
+  sentAt      DateTime?
+  createdAt   DateTime @default(now())
+}
+
+model SupportTicket {
+  id          String   @id @default(cuid())
+  tenantId    String
+  customerId  String?
+  subject     String
+  category    String   // WALLET | TAG | TRIP | CHALLAN | OTHER
+  priority    String   @default("MEDIUM") // LOW | MEDIUM | HIGH | URGENT
+  status      String   @default("OPEN") // OPEN | IN_PROGRESS | RESOLVED | CLOSED
+  createdAt   DateTime @default(now())
+  resolvedAt  DateTime?
+}
+
+model CorporateAccount {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  gstin       String?
+  creditLimit Float    @default(0)
+  billingCycle String  @default("MONTHLY") // WEEKLY | MONTHLY | QUARTERLY
+  contactEmail String?
+  createdAt   DateTime @default(now())
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  invoices    Invoice[]
+}
+
+model Invoice {
+  id          String   @id @default(cuid())
+  corporateAccountId String
+  invoiceNo   String   @unique
+  period      String
+  amount      Float
+  taxAmount   Float
+  totalAmount Float
+  status      String   @default("DRAFT") // DRAFT | ISSUED | PAID | OVERDUE
+  issueDate   DateTime @default(now())
+  dueDate     DateTime
+
+  corporateAccount CorporateAccount @relation(fields: [corporateAccountId], references: [id])
+}
