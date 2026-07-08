@@ -6,26 +6,70 @@ import type {
   ModuleKey,
   Notification,
   Settlement,
+  Staff,
   Tenant,
   Transaction,
   Violation,
   Challan,
+  Shift,
+  TollPlaza,
+  RateCard,
 } from "@/lib/types";
 import { initialState } from "@/lib/seed-data";
+
+// LocalStorage persistence helpers
+const STORAGE_KEY = "global-toll-store";
+function loadPersisted(): Partial<AppState> | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+function savePersisted(state: AppState) {
+  if (typeof window === "undefined") return;
+  try {
+    const toSave = {
+      transactions: state.transactions,
+      shifts: state.shifts,
+      staff: state.staff,
+      auditLogs: state.auditLogs,
+      plazas: state.plazas,
+      rateCards: state.rateCards,
+      vehicleClasses: state.vehicleClasses,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+  } catch {}
+}
 
 interface StoreActions {
   login: (userId: string) => void;
   logout: () => void;
   switchTenant: (tenantId: string) => void;
   setActiveModule: (m: ModuleKey) => void;
+  setSelectedPlaza: (plazaId: string) => void;
+  setOpeningFloat: (amount: number) => void;
   addPlaza: (data: Partial<Tenant> & { name: string }) => void;
+  updatePlaza: (id: string, data: Partial<TollPlaza>) => void;
   addTransaction: (txn: Transaction) => void;
+  deleteTransaction: (id: string) => void;
+  addShift: (shift: Shift) => void;
+  endShift: (id: string) => void;
+  addStaff: (data: { name: string; designation: Staff["designation"]; plazaId?: string }) => void;
+  updateStaff: (id: string, data: Partial<Staff>) => void;
+  deleteStaff: (id: string) => void;
+  addVehicleClass: (data: { code: string; label: string; description: string; axleCount: number }) => void;
+  updateVehicleClass: (code: string, data: { label: string; description: string; axleCount: number }) => void;
+  deleteRateCard: (id: string) => void;
+  updateRateCard: (id: string, data: Partial<RateCard>) => void;
   lockSettlement: (id: string, actor: string) => void;
   issueChallan: (violationId: string, amount: number) => void;
   payChallan: (challanId: string) => void;
   pushAudit: (entry: Omit<AuditLog, "id" | "createdAt" | "hashChain">) => void;
   pushNotification: (n: Omit<Notification, "id" | "createdAt">) => void;
   reset: () => void;
+  setView: (v: string) => void;
 }
 
 type Store = AppState & StoreActions;
@@ -38,8 +82,11 @@ function nextHash(prev: string, payload: string) {
   return (h >>> 0).toString(16).padStart(8, "0").repeat(8);
 }
 
+const persisted = loadPersisted();
+const startState = persisted ? { ...initialState, ...persisted } : initialState;
+
 export const useStore = create<Store>((set, get) => ({
-  ...initialState,
+  ...startState,
 
   login: (userId) => {
     const u = get().users.find((x) => x.id === userId);
@@ -54,6 +101,7 @@ export const useStore = create<Store>((set, get) => ({
     };
     get().pushAudit(entry);
     set({ currentUser: u, currentTenantId: u.tenantId, activeModule: "dashboard" });
+    savePersisted(get());
   },
 
   logout: () => {
@@ -69,9 +117,14 @@ export const useStore = create<Store>((set, get) => ({
       });
     }
     set({ currentUser: null, activeModule: "dashboard" });
+    savePersisted(get());
   },
 
   switchTenant: (tenantId) => set({ currentTenantId: tenantId }),
+
+  setSelectedPlaza: (plazaId) => set({ selectedPlazaId: plazaId }),
+
+  setOpeningFloat: (amount) => set({ openingFloat: amount }),
 
   setActiveModule: (m) => set({ activeModule: m }),
 
@@ -101,8 +154,194 @@ export const useStore = create<Store>((set, get) => ({
     });
   },
 
-  addTransaction: (txn) =>
-    set((s) => ({ transactions: [txn, ...s.transactions] })),
+  updatePlaza: (id, data) => {
+    set((s) => ({
+      plazas: s.plazas.map((p) => p.id === id ? { ...p, ...data } : p),
+    }));
+    savePersisted(get());
+    get().pushAudit({
+      tenantId: get().currentTenantId,
+      actorName: get().currentUser?.name ?? "System",
+      action: "UPDATE",
+      module: "admin",
+      entityType: "plaza",
+      entityId: id,
+      afterValue: JSON.stringify(data),
+      ipAddress: "10.0.1.42",
+    });
+  },
+
+  addTransaction: (txn) => {
+    set((s) => ({ transactions: [txn, ...s.transactions] }));
+    savePersisted(get());
+  },
+
+  deleteTransaction: (id) => {
+    set((s) => ({ transactions: s.transactions.filter((tx) => tx.id !== id) }));
+    savePersisted(get());
+    get().pushAudit({
+      tenantId: get().currentTenantId,
+      actorName: get().currentUser?.name ?? "System",
+      action: "DELETE",
+      module: "transactions",
+      entityType: "transaction",
+      entityId: id,
+      ipAddress: "10.0.1.42",
+    });
+  },
+
+  addShift: (shift) => {
+    set((s) => ({ shifts: [shift, ...s.shifts] }));
+    savePersisted(get());
+    get().pushAudit({
+      tenantId: get().currentTenantId,
+      actorName: get().currentUser?.name ?? "System",
+      action: "CREATE",
+      module: "shifts",
+      entityType: "shift",
+      entityId: shift.id,
+      afterValue: JSON.stringify({ operator: shift.operatorName, plaza: shift.plazaName }),
+      ipAddress: "10.0.1.42",
+    });
+  },
+
+  endShift: (id) => {
+    set((s) => ({
+      shifts: s.shifts.map((sh) => sh.id === id ? { ...sh, status: "CLOSED", endedAt: new Date().toISOString() } : sh),
+    }));
+    savePersisted(get());
+    get().pushAudit({
+      tenantId: get().currentTenantId,
+      actorName: get().currentUser?.name ?? "System",
+      action: "UPDATE",
+      module: "shifts",
+      entityType: "shift",
+      entityId: id,
+      ipAddress: "10.0.1.42",
+    });
+  },
+
+  addStaff: (data) => {
+    const newStaff: Staff = {
+      id: `stf-${Date.now()}`,
+      tenantId: get().currentTenantId,
+      employeeId: `EMP-${String(get().staff.length + 1).padStart(4, "0")}`,
+      name: data.name,
+      designation: data.designation,
+      plazaId: data.plazaId,
+      status: "ACTIVE",
+      hireDate: new Date().toISOString(),
+    };
+    set((s) => ({ staff: [...s.staff, newStaff] }));
+    savePersisted(get());
+    get().pushAudit({
+      tenantId: get().currentTenantId,
+      actorName: get().currentUser?.name ?? "System",
+      action: "CREATE",
+      module: "staff",
+      entityType: "staff",
+      entityId: newStaff.id,
+      afterValue: JSON.stringify({ name: data.name, designation: data.designation }),
+      ipAddress: "10.0.1.42",
+    });
+  },
+
+  updateStaff: (id, data) => {
+    set((s) => ({
+      staff: s.staff.map((st) => st.id === id ? { ...st, ...data } : st),
+    }));
+    savePersisted(get());
+    get().pushAudit({
+      tenantId: get().currentTenantId,
+      actorName: get().currentUser?.name ?? "System",
+      action: "UPDATE",
+      module: "staff",
+      entityType: "staff",
+      entityId: id,
+      afterValue: JSON.stringify(data),
+      ipAddress: "10.0.1.42",
+    });
+  },
+
+  deleteStaff: (id) => {
+    set((s) => ({ staff: s.staff.filter((st) => st.id !== id) }));
+    savePersisted(get());
+    get().pushAudit({
+      tenantId: get().currentTenantId,
+      actorName: get().currentUser?.name ?? "System",
+      action: "DELETE",
+      module: "staff",
+      entityType: "staff",
+      entityId: id,
+      ipAddress: "10.0.1.42",
+    });
+  },
+
+  addVehicleClass: (data) => {
+    const newClass = { code: data.code, label: data.label, description: data.description, axleCount: data.axleCount };
+    set((s) => ({ vehicleClasses: [...s.vehicleClasses, newClass] }));
+    savePersisted(get());
+    get().pushAudit({
+      tenantId: get().currentTenantId,
+      actorName: get().currentUser?.name ?? "System",
+      action: "CREATE",
+      module: "vehicles",
+      entityType: "vehicleClass",
+      entityId: data.code,
+      afterValue: JSON.stringify(data),
+      ipAddress: "10.0.1.42",
+    });
+  },
+
+  updateVehicleClass: (code, data) => {
+    set((s) => ({
+      vehicleClasses: s.vehicleClasses.map((vc) => vc.code === code ? { ...vc, ...data } : vc),
+    }));
+    savePersisted(get());
+    get().pushAudit({
+      tenantId: get().currentTenantId,
+      actorName: get().currentUser?.name ?? "System",
+      action: "UPDATE",
+      module: "vehicles",
+      entityType: "vehicleClass",
+      entityId: code,
+      afterValue: JSON.stringify(data),
+      ipAddress: "10.0.1.42",
+    });
+  },
+
+  deleteRateCard: (id) => {
+    set((s) => ({ rateCards: s.rateCards.filter((rc) => rc.id !== id) }));
+    savePersisted(get());
+    get().pushAudit({
+      tenantId: get().currentTenantId,
+      actorName: get().currentUser?.name ?? "System",
+      action: "DELETE",
+      module: "rates",
+      entityType: "rateCard",
+      entityId: id,
+      ipAddress: "10.0.1.42",
+    });
+  },
+
+  updateRateCard: (id, data) => {
+    set((s) => ({
+      rateCards: s.rateCards.map((rc) => rc.id === id ? { ...rc, ...data } : rc),
+    }));
+    savePersisted(get());
+    get().pushAudit({
+      tenantId: get().currentTenantId,
+      actorName: get().currentUser?.name ?? "System",
+      action: "UPDATE",
+      module: "rates",
+      entityType: "rateCard",
+      entityId: id,
+      afterValue: JSON.stringify(data),
+      ipAddress: "10.0.1.42",
+    });
+  },
+
+  setView: () => {},
 
   lockSettlement: (id, actor) =>
     set((s) => ({

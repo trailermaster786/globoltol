@@ -51,6 +51,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
+        suppressHydrationWarning
         className={`${inter.variable} ${mono.variable} antialiased bg-background text-foreground`}
       >
         {children}

@@ -2,18 +2,6 @@
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 
-// =====================================================================
-// OmanPlateInput — auto-formats Oman number plates.
-// Format: [1-6 digits] + "-" + [region letters]
-// Auto-dash behavior:
-//   - As the user types digits, the field shows just the digits.
-//   - When they hit 6 digits, the dash auto-appears (anticipating letters).
-//   - When they type a letter while digits are present (1-6), dash auto-inserts.
-//   - Region letters: A=Muscat, B=Dhofar, C=Musandam, D=Buraimi,
-//     E=Dakhiliyah, F=Batinah N, G=Batinah S, H=Sharqiyah N,
-//     I=Sharqiyah S, J=Dhahirah, K=Wusta.
-// =====================================================================
-
 const OMAN_REGIONS: { code: string; name: string }[] = [
   { code: "A", name: "Muscat" },
   { code: "B", name: "Dhofar" },
@@ -29,34 +17,25 @@ const OMAN_REGIONS: { code: string; name: string }[] = [
 ];
 
 export function formatOmanPlate(raw: string): string {
-  // Uppercase, strip anything that's not digit or letter
-  const cleaned = raw.toUpperCase().replace(/[^0-9A-Z]/g, "");
+  const cleaned = raw.toUpperCase().replace(/[^0-9A-Z-]/g, "");
 
-  // Split: leading digits + trailing letters
-  const digitsMatch = cleaned.match(/^[0-9]+/);
-  const lettersMatch = cleaned.match(/[A-Z]+$/);
-  const digits = digitsMatch ? digitsMatch[0] : "";
-  const letters = lettersMatch ? lettersMatch[0] : "";
-
-  // Cap digits at 6
-  const trimmedDigits = digits.slice(0, 6);
-
-  if (!trimmedDigits && letters) {
-    // User started with letters (unusual) — just show letters
-    return letters;
+  // If no dash yet, only allow digits (max 6)
+  if (!cleaned.includes("-")) {
+    const digits = cleaned.replace(/[^0-9]/g, "").slice(0, 6);
+    if (digits.length === 6) {
+      return digits + "-"; // auto-insert dash after 6 digits
+    }
+    return digits;
   }
 
-  if (trimmedDigits && !letters) {
-    // Only digits so far. If at max (6), pre-insert the dash so the operator
-    // sees the format is ready for the letter section.
-    return trimmedDigits.length === 6 ? `${trimmedDigits}-` : trimmedDigits;
-  }
+  // Has dash — split into digits and letters
+  const dashIndex = cleaned.indexOf("-");
+  const digits = cleaned.slice(0, dashIndex).replace(/[^0-9]/g, "").slice(0, 6);
+  const letters = cleaned.slice(dashIndex + 1).replace(/[^A-Z]/g, "");
 
-  if (trimmedDigits && letters) {
-    return `${trimmedDigits}-${letters}`;
-  }
-
-  return "";
+  if (!digits) return "";
+  if (!letters) return digits + "-";
+  return `${digits}-${letters}`;
 }
 
 interface OmanPlateInputProps {
@@ -72,21 +51,19 @@ export function OmanPlateInput({
   value,
   onChange,
   onValidPlate,
-  placeholder = "e.g. 12345-A",
+  placeholder = "e.g. 123456-A",
   className,
   autoFocus,
 }: OmanPlateInputProps) {
   const [touched, setTouched] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Parse the current value for region lookup
   const digits = (value.match(/^[0-9]+/) || [""])[0];
   const letters = (value.match(/-([A-Z]+)$/) || ["", ""])[1];
   const region = letters ? OMAN_REGIONS.find((r) => r.code === letters[0]) : null;
 
-  const isValid = /^\d{1,6}-[A-Z]+$/.test(value);
+  const isValid = /^\d{6}-[A-Z]+$/.test(value);
 
-  // Notify parent when plate becomes valid
   useEffect(() => {
     if (isValid && onValidPlate) {
       onValidPlate(value, region?.code ?? null);
@@ -101,14 +78,20 @@ export function OmanPlateInput({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    // If user presses a letter key while cursor is in the digit section and
-    // there's no dash yet, the formatter handles it automatically.
-    // Allow: Tab, arrows, backspace, delete, etc.
     if (["Tab", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Backspace", "Delete"].includes(e.key)) {
       return;
     }
-    // If at max length (6 digits + dash + letters), block extra input
-    if (value.length >= 10 && !["Backspace", "Delete"].includes(e.key)) {
+    // Block if at max length
+    if (value.length >= 9 && !["Backspace", "Delete"].includes(e.key)) {
+      e.preventDefault();
+      return;
+    }
+    // Block letters if no dash yet (still in digit section)
+    if (!value.includes("-") && /[A-Za-z]/.test(e.key)) {
+      e.preventDefault();
+    }
+    // Block digits after dash (only letters allowed in region section)
+    if (value.includes("-") && value.endsWith("-") && /[0-9]/.test(e.key)) {
       e.preventDefault();
     }
   };
@@ -137,9 +120,8 @@ export function OmanPlateInput({
             className
           )}
           aria-label="Oman vehicle plate number"
-          maxLength={10}
+          maxLength={9}
         />
-        {/* Region badge */}
         {region && (
           <div className="absolute right-3 top-1/2 -translate-y-1/2 px-2 py-1 rounded-md bg-teal text-white text-[0.65rem] font-semibold">
             {region.name}
@@ -147,10 +129,9 @@ export function OmanPlateInput({
         )}
       </div>
 
-      {/* Helper / status text */}
       <div className="flex items-center justify-between text-[0.65rem] px-1">
         <div className="text-muted-foreground">
-          Format: <span className="font-mono">1–6 digits</span> →{" "}
+          Format: <span className="font-mono">6 digits</span> →{" "}
           <span className="font-mono">-</span> → <span className="font-mono">region letter</span>
         </div>
         <div>
@@ -161,11 +142,9 @@ export function OmanPlateInput({
             </span>
           ) : value.length > 0 ? (
             <span className="text-amber-600 font-medium">
-              {digits.length < 1
-                ? "Enter digits first"
-                : !value.includes("-")
-                  ? "Type region letter (auto-inserts dash)"
-                  : "Enter region letter (A–K)"}
+              {digits.length < 6
+                ? `Enter ${6 - digits.length} more digit${6 - digits.length === 1 ? "" : "s"}`
+                : "Type region letter (A–K)"}
             </span>
           ) : (
             <span className="text-muted-foreground">Awaiting input…</span>

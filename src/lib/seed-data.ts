@@ -29,6 +29,7 @@ import type {
   RateRule,
   Tenant,
   VehicleClassCode,
+  Shift,
 } from "./types";
 
 const now = Date.now();
@@ -230,6 +231,7 @@ const notifications: Notification[] = [];
 const supportTickets: SupportTicket[] = [];
 const corporateAccounts: CorporateAccount[] = [];
 const invoices: Invoice[] = [];
+const shifts: Shift[] = [];
 
 // ---- 2 users only ---------------------------------------------------
 const users: User[] = [
@@ -258,6 +260,8 @@ const users: User[] = [
 export const initialState: AppState = {
   currentUser: null,
   currentTenantId: "tnt-1",
+  selectedPlazaId: "",
+  openingFloat: 0,
   activeModule: "dashboard",
   tenants,
   users,
@@ -277,6 +281,7 @@ export const initialState: AppState = {
   violations,
   challans,
   staff,
+  shifts,
   auditLogs,
   notifications,
   supportTickets,

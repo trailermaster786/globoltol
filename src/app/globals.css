@@ -92,37 +92,37 @@
 }
 
 .dark {
-  --background: #1A2530;
-  --foreground: #ECEFF2;
-  --card: #243240;
-  --card-foreground: #ECEFF2;
-  --popover: #243240;
-  --popover-foreground: #ECEFF2;
-  --primary: #4FA9A9;
-  --primary-foreground: #0E1820;
-  --secondary: #2D3D4D;
-  --secondary-foreground: #ECEFF2;
-  --muted: #2D3D4D;
-  --muted-foreground: #8AA3B3;
-  --accent: #3A2E15;
-  --accent-foreground: #F0BC5C;
-  --destructive: #E55A4A;
-  --border: #34495E;
-  --input: #34495E;
-  --ring: #4FA9A9;
-  --chart-1: #4FA9A9;
-  --chart-2: #5C7A8A;
-  --chart-3: #2E8B8B;
-  --chart-4: #F0BC5C;
-  --chart-5: #7AB3A3;
-  --sidebar: #16212A;
-  --sidebar-foreground: #C9D4DC;
-  --sidebar-primary: #2E8B8B;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #1F2D38;
-  --sidebar-accent-foreground: #FFFFFF;
-  --sidebar-border: #1F2D38;
-  --sidebar-ring: #4FA9A9;
+  --background: #0A0A0A;
+  --foreground: #FAFAFA;
+  --card: #141414;
+  --card-foreground: #FAFAFA;
+  --popover: #141414;
+  --popover-foreground: #FAFAFA;
+  --primary: #F97316;
+  --primary-foreground: #000000;
+  --secondary: #1A1A1A;
+  --secondary-foreground: #FAFAFA;
+  --muted: #1A1A1A;
+  --muted-foreground: #A3A3A3;
+  --accent: #2A1A00;
+  --accent-foreground: #FB923C;
+  --destructive: #EF4444;
+  --border: #262626;
+  --input: #262626;
+  --ring: #F97316;
+  --chart-1: #F97316;
+  --chart-2: #FB923C;
+  --chart-3: #FDBA74;
+  --chart-4: #EA580C;
+  --chart-5: #C2410C;
+  --sidebar: #0A0A0A;
+  --sidebar-foreground: #FAFAFA;
+  --sidebar-primary: #F97316;
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: #141414;
+  --sidebar-accent-foreground: #FAFAFA;
+  --sidebar-border: #262626;
+  --sidebar-ring: #F97316;
 }
 
 @layer base {
@@ -164,6 +164,62 @@
   .bg-gold { background-color: var(--color-gold); }
 
   .revenue-glow {
-    box-shadow: 0 0 0 1px rgba(224, 160, 48, 0.25), 0 8px 24px -8px rgba(224, 160, 48, 0.4);
+    box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.25), 0 8px 24px -8px rgba(249, 115, 22, 0.4);
+  }
+}
+
+/* Stamp animation for receipt */
+@keyframes stampDrop {
+  0% {
+    transform: scale(2) rotate(-15deg);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(0.9) rotate(3deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(-5deg);
+    opacity: 0.85;
+  }
+}
+
+.stamp-approved {
+  animation: stampDrop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  transform-origin: center;
+}
+
+/* Glassmorphism utility */
+.glass {
+  background: rgba(249, 115, 22, 0.1);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(249, 115, 22, 0.2);
+}
+
+/* RTL support */
+[direction="rtl"] .text-right {
+  text-align: right !important;
+}
+[direction="rtl"] .flex-row-reverse {
+  flex-direction: row-reverse !important;
+}
+
+/* Print styles for receipt */
+@media print {
+  body {
+    background: white !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .stamp-approved {
+    animation: none !important;
+    opacity: 0.85 !important;
+    transform: scale(1) rotate(-5deg) !important;
+  }
+
+  .no-print {
+    display: none !important;
   }
 }

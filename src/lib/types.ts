@@ -279,6 +279,18 @@ export interface Challan {
   appealReason?: string;
 }
 
+export interface Shift {
+  id: string;
+  operatorId: string;
+  operatorName: string;
+  plazaId: string;
+  plazaName: string;
+  laneIds: string[];
+  status: "OPEN" | "CLOSED";
+  startedAt: string;
+  endedAt?: string;
+}
+
 export interface Staff {
   id: string;
   tenantId: string;
@@ -372,6 +384,9 @@ export interface AppState {
   // auth
   currentUser: User | null;
   currentTenantId: string;
+  // operator shift
+  selectedPlazaId: string;
+  openingFloat: number;
   // navigation
   activeModule: ModuleKey;
   // data
@@ -393,6 +408,7 @@ export interface AppState {
   violations: Violation[];
   challans: Challan[];
   staff: Staff[];
+  shifts: Shift[];
   auditLogs: AuditLog[];
   notifications: Notification[];
   supportTickets: SupportTicket[];
